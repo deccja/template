@@ -47,19 +47,12 @@ export default function DirectoryBrowser({
     const fetchDirectoryContents = async () => {
       setIsLoading(true);
       try {
-        // Convert pathname to directory path (remove leading slash and decode URL components)
-        const dirPath = pathname === '/' 
-          ? '' 
-          : decodeURIComponent(pathname.slice(1));
+        // Convert pathname to directory path (remove leading slash)
+        const dirPath = pathname === '/' ? '' : pathname.slice(1);
         
-        console.log(`Fetching contents for directory: "${dirPath}" based on pathname: "${pathname}"`);
+        console.log(`Fetching contents for directory from pathname: "${pathname}" -> path: "${dirPath}"`);
         
-        // Skip if we're already showing the correct directory
-        if (dirPath === currentDirContents.path) {
-          console.log('Already showing the correct directory, skipping fetch');
-          return;
-        }
-        
+        // Get the contents for this directory
         const contents = await getDirectoryContents(dirPath);
         console.log(`Fetched ${contents.items.length} items for "${dirPath}"`);
         setCurrentDirContents(contents);
@@ -73,7 +66,7 @@ export default function DirectoryBrowser({
 
     // Fetch contents when pathname changes (client-side navigation)
     fetchDirectoryContents();
-  }, [pathname, currentDirContents.path]);
+  }, [pathname]); // Only depend on pathname changes
   
   // Update items when directoryContents or currentDirContents changes
   useEffect(() => {
