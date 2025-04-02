@@ -125,7 +125,12 @@ export default function DirectoryBrowser({
     <div className="w-full space-y-6">
       <div className="flex flex-col space-y-4">
         <div className="flex items-center justify-between gap-4">
-          <BreadcrumbNav currentPath={directoryContents.path} />
+          <div className="flex flex-col">
+            <h1 className="text-xl font-semibold mb-1">
+              {directoryContents.path ? directoryContents.path.split('/').pop() : 'Root Directory'}
+            </h1>
+            <BreadcrumbNav currentPath={directoryContents.path} />
+          </div>
           
           <div className="flex gap-2">
             <Button 

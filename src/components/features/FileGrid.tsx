@@ -9,12 +9,14 @@ import { ImageOverlay } from './ImageOverlay';
 
 interface FileGridProps {
   items: FileItem[];
+  currentPath?: string;
   onItemClick?: (item: FileItem) => void;
   onItemMenuClick?: (item: FileItem, event: React.MouseEvent) => void;
 }
 
 export default function FileGrid({ 
   items,
+  currentPath = '',
   onItemClick,
   onItemMenuClick
 }: FileGridProps) {
