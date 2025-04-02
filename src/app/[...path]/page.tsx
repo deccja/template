@@ -1,3 +1,5 @@
+'use client';
+
 import DirectoryBrowser from '@/components/features/DirectoryBrowser';
 import Layout from '@/components/layout/Layout';
 
@@ -9,10 +11,15 @@ interface PathPageProps {
   };
 }
 
-export default async function PathPage({ params }: PathPageProps) {
+export default function PathPage({ params }: PathPageProps) {
+  const handleShowImage = (imageData: { url: string; name: string }) => {
+    // Event handling can be done here if needed
+    // Currently handled by the Layout component via context
+  };
+
   return (
     <Layout>
-      <DirectoryBrowser onShowImage={(imageData) => {}} />
+      <DirectoryBrowser onShowImage={handleShowImage} />
     </Layout>
   );
 } 

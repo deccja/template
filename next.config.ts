@@ -9,6 +9,11 @@ const nextConfig = {
       bodySizeLimit: '52mb', // Slightly larger than our 50MB limit
     },
   },
+  // Disable the Next.js development overlay (the interactive "N" logo)
+  devIndicators: {
+    buildActivity: false,
+    buildActivityPosition: "bottom-right",
+  },
 };
 
 export default nextConfig;
