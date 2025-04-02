@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { DirectoryContents, FileItem, DialogState } from '@/types';
@@ -40,6 +40,13 @@ export default function DirectoryBrowser({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedImageItem, setSelectedImageItem] = useState<FileItem | null>(null);
   const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
+  const [items, setItems] = useState<FileItem[]>([]);
+  
+  // Update items when directoryContents changes
+  useEffect(() => {
+    console.log('Setting items from directoryContents:', directoryContents.items.length);
+    setItems(directoryContents.items);
+  }, [directoryContents]);
 
   // Check if the file is an image
   const isImage = (item: FileItem) => 
@@ -143,9 +150,9 @@ export default function DirectoryBrowser({
             </h1>
             <BreadcrumbNav currentPath={directoryContents.path} />
             <div className="text-xs text-gray-500 mt-1">
-              Folders: {directoryContents.items.filter(item => item.isDirectory).length} | 
-              Files: {directoryContents.items.filter(item => !item.isDirectory).length}
-              {directoryContents.items.length === 0 && (<span className="ml-2 text-red-500">No items found in this folder!</span>)}
+              Folders: {items.filter(item => item.isDirectory).length} | 
+              Files: {items.filter(item => !item.isDirectory).length}
+              {items.length === 0 && (<span className="ml-2 text-red-500">No items found in this folder!</span>)}
             </div>
           </div>
           
@@ -166,9 +173,9 @@ export default function DirectoryBrowser({
         {/* File Upload */}
         {showUpload && <FileUpload />}
 
-        {directoryContents.items.length > 0 ? (
+        {items.length > 0 ? (
           <FileGrid 
-            items={directoryContents.items}
+            items={items}
             currentPath={directoryContents.path}
             onItemClick={handleItemClick}
             onItemMenuClick={handleItemMenuClick}

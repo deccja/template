@@ -211,12 +211,16 @@ export default function FolderTree() {
 
   // Handle file click
   const handleFileClick = (node: TreeNode) => {
+    console.log('FolderTree - clicked on:', node);
+    
     if (node.isDirectory) {
       router.push(`/${node.path}`);
     } else if (isImage(node) && node.url) {
+      console.log('FolderTree - opening image in overlay:', node.url);
       // Open image in overlay
       setSelectedImageNode(node);
       setIsImageOverlayOpen(true);
+      console.log('Set overlay state to true, selectedImageNode:', node);
     } else if (node.url) {
       // Open non-image files in new tab
       window.open(node.url, '_blank');
@@ -293,7 +297,10 @@ export default function FolderTree() {
         <ImageOverlay
           src={selectedImageNode.url}
           alt={selectedImageNode.name}
-          onClose={() => setIsImageOverlayOpen(false)}
+          onClose={() => {
+            console.log('Closing image overlay');
+            setIsImageOverlayOpen(false);
+          }}
         />
       )}
     </>
