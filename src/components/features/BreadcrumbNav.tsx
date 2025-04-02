@@ -13,12 +13,10 @@ import {
 } from '@/components/ui/breadcrumb';
 import { ChevronRight, Home } from 'lucide-react';
 import { PathSegment } from '@/types';
+import { useFolderContext } from './FolderTree';
 
-interface BreadcrumbNavProps {
-  currentPath: string;
-}
-
-export default function BreadcrumbNav({ currentPath }: BreadcrumbNavProps) {
+export default function BreadcrumbNav() {
+  const { currentPath } = useFolderContext();
   const pathname = usePathname();
   
   // Create breadcrumb segments

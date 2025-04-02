@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, createContext, useContext } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { getDirectoryContents } from '@/server/actions/file-actions';
 import { FileItem } from '@/types';
 import { FolderIcon, FileIcon, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// Define TreeNode interface
 interface TreeNode {
   name: string;
   path: string;
@@ -16,7 +17,26 @@ interface TreeNode {
   children: TreeNode[];
   url?: string;
   type?: string;
+  size?: number;
 }
+
+// Create a context for folder navigation
+interface FolderContextType {
+  currentPath: string;
+  currentContents: TreeNode[];
+  isLoading: boolean;
+  navigateToFolder: (path: string) => void;
+}
+
+export const FolderContext = createContext<FolderContextType>({
+  currentPath: '',
+  currentContents: [],
+  isLoading: false,
+  navigateToFolder: () => {},
+});
+
+// Hook to use folder context
+export const useFolderContext = () => useContext(FolderContext);
 
 interface FolderTreeProps {
   onShowImage: (imageData: { url: string; name: string }) => void;
@@ -33,6 +53,9 @@ export default function FolderTree({ onShowImage }: FolderTreeProps) {
     isLoading: false,
     children: [],
   });
+  const [currentContents, setCurrentContents] = useState<TreeNode[]>([]);
+  const [currentPath, setCurrentPath] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Load the root directory when the component mounts
   useEffect(() => {
@@ -43,13 +66,56 @@ export default function FolderTree({ onShowImage }: FolderTreeProps) {
   // Expand folders based on current path when pathname changes
   useEffect(() => {
     if (pathname) {
-      const currentPath = pathname === '/' ? '' : pathname.slice(1);
-      if (currentPath) {
-        expandPathFolders(currentPath);
+      const path = pathname === '/' ? '' : pathname.slice(1);
+      setCurrentPath(path);
+      
+      if (path) {
+        expandPathFolders(path);
+      } else {
+        // If at root, set current contents to root children
+        setCurrentContents(rootNode.children);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
+
+  // Update current contents whenever rootNode changes
+  useEffect(() => {
+    updateCurrentContents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rootNode, currentPath]);
+
+  // Function to update current contents based on the current path
+  const updateCurrentContents = () => {
+    const pathParts = currentPath.split('/').filter(part => part);
+    
+    if (pathParts.length === 0) {
+      // At root level
+      setCurrentContents(rootNode.children);
+      return;
+    }
+    
+    // Find the current node based on the path
+    let currentNode = rootNode;
+    let found = true;
+    
+    for (const part of pathParts) {
+      const nextNode = currentNode.children.find(child => 
+        child.name === part && child.isDirectory
+      );
+      
+      if (nextNode) {
+        currentNode = nextNode;
+      } else {
+        found = false;
+        break;
+      }
+    }
+    
+    if (found) {
+      setCurrentContents(currentNode.children);
+    }
+  };
 
   // Check if the file is an image
   const isImage = (node: TreeNode) => 
@@ -59,6 +125,7 @@ export default function FolderTree({ onShowImage }: FolderTreeProps) {
 
   // Load the root directory
   const loadRootDirectory = async () => {
+    setIsLoading(true);
     try {
       const contents = await getDirectoryContents('');
       const rootChildren = contents.items.map((item) => ({
@@ -70,19 +137,28 @@ export default function FolderTree({ onShowImage }: FolderTreeProps) {
         children: [],
         url: item.url,
         type: item.type,
+        size: item.size,
       }));
 
       setRootNode((prev) => ({
         ...prev,
         children: rootChildren,
       }));
+      
+      // If we're at the root path, update current contents
+      if (currentPath === '') {
+        setCurrentContents(rootChildren);
+      }
     } catch (error) {
       console.error('Failed to load root directory:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   // Expand all folders in a path
   const expandPathFolders = async (path: string) => {
+    setIsLoading(true);
     const pathParts = path.split('/');
     let currentPath = '';
 
@@ -99,6 +175,7 @@ export default function FolderTree({ onShowImage }: FolderTreeProps) {
     }
     
     setRootNode(newRoot);
+    setIsLoading(false);
   };
 
   // Helper to expand a folder in the tree structure
@@ -133,6 +210,7 @@ export default function FolderTree({ onShowImage }: FolderTreeProps) {
 
   // Toggle folder expansion
   const toggleFolder = async (node: TreeNode) => {
+    setIsLoading(true);
     // Create a copy of the root node
     const newRoot = { ...rootNode };
     
@@ -141,6 +219,13 @@ export default function FolderTree({ onShowImage }: FolderTreeProps) {
     
     // Update state
     setRootNode(newRoot);
+    setIsLoading(false);
+
+    // If we're toggling to expand and this folder has the same path as currentPath
+    // then update the router to navigate to this folder
+    if (node.isExpanded === false && node.path === currentPath) {
+      router.push(`/${node.path}`);
+    }
   };
 
   // Helper to toggle a node in the tree structure
@@ -195,6 +280,7 @@ export default function FolderTree({ onShowImage }: FolderTreeProps) {
         children: [],
         url: item.url,
         type: item.type,
+        size: item.size,
       }));
       
       // Update the node
@@ -203,6 +289,11 @@ export default function FolderTree({ onShowImage }: FolderTreeProps) {
       
       // Update state
       setRootNode({ ...rootNode });
+      
+      // If this is the current path, update current contents
+      if (node.path === currentPath) {
+        setCurrentContents(children);
+      }
     } catch (error) {
       console.error(`Failed to load contents for ${node.path}:`, error);
       node.isLoading = false;
@@ -231,6 +322,19 @@ export default function FolderTree({ onShowImage }: FolderTreeProps) {
       const dirPath = node.path.split('/').slice(0, -1).join('/');
       router.push(`/${dirPath}`);
     }
+  };
+
+  // Function for navigating to a folder (to be shared via context)
+  const navigateToFolder = (path: string) => {
+    router.push(`/${path}`);
+  };
+
+  // Folder context value
+  const folderContextValue: FolderContextType = {
+    currentPath,
+    currentContents,
+    isLoading,
+    navigateToFolder,
   };
 
   // Render the tree nodes recursively
@@ -288,9 +392,11 @@ export default function FolderTree({ onShowImage }: FolderTreeProps) {
   };
 
   return (
-    <div className="bg-white rounded-md border p-2 h-full overflow-auto">
-      <div className="font-semibold text-sm mb-2">Files</div>
-      {renderTreeNodes([rootNode])}
-    </div>
+    <FolderContext.Provider value={folderContextValue}>
+      <div className="bg-white rounded-md border p-2 h-full overflow-auto">
+        <div className="font-semibold text-sm mb-2">Files</div>
+        {renderTreeNodes([rootNode])}
+      </div>
+    </FolderContext.Provider>
   );
 } 

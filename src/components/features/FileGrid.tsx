@@ -1,22 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { getDirectoryContents } from '@/server/actions/file-actions';
-import { FileItem } from '@/types';
+import React from 'react';
+import { useRouter } from 'next/navigation';
+import { useFolderContext } from './FolderTree';
 import { FolderIcon, FileIcon } from 'lucide-react';
 import { formatFileSize } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
-
-interface GridNode {
-  name: string;
-  path: string;
-  isDirectory: boolean;
-  children: GridNode[];
-  url?: string;
-  type?: string;
-  size?: number;
-}
 
 interface FileGridProps {
   onShowImage: (imageData: { url: string; name: string }) => void;
@@ -24,64 +13,16 @@ interface FileGridProps {
 
 export default function FileGrid({ onShowImage }: FileGridProps) {
   const router = useRouter();
-  const pathname = usePathname();
-  const [rootNode, setRootNode] = useState<GridNode>({
-    name: 'Root',
-    path: '',
-    isDirectory: true,
-    children: [],
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentPath, setCurrentPath] = useState('');
-
-  // Load directory contents when the component mounts or pathname changes
-  useEffect(() => {
-    if (pathname) {
-      const path = pathname === '/' ? '' : pathname.slice(1);
-      setCurrentPath(path);
-      loadDirectoryContents(path);
-    }
-  }, [pathname]);
+  const { currentContents, isLoading, currentPath } = useFolderContext();
 
   // Check if the file is an image
-  const isImage = (node: GridNode) => 
+  const isImage = (node: any) => 
     (node.type?.startsWith('image/') || 
     /\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|tif|heic|heif)$/i.test(node.path)) &&
     !node.isDirectory;
 
-  // Load directory contents
-  const loadDirectoryContents = async (path: string) => {
-    setIsLoading(true);
-    
-    try {
-      console.log(`[FileGrid] Loading contents for path: "${path}"`);
-      const contents = await getDirectoryContents(path);
-      
-      const children = contents.items.map((item) => ({
-        name: item.name,
-        path: item.path,
-        isDirectory: item.isDirectory,
-        children: [],
-        url: item.url,
-        type: item.type,
-        size: item.size
-      }));
-
-      setRootNode({
-        name: path.split('/').pop() || 'Root',
-        path: path,
-        isDirectory: true,
-        children: children,
-      });
-    } catch (error) {
-      console.error(`Failed to load contents for ${path}:`, error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // Handle item click
-  const handleItemClick = (node: GridNode) => {
+  const handleItemClick = (node: any) => {
     console.log('FileGrid - clicked on:', node);
     
     if (node.isDirectory) {
@@ -103,7 +44,7 @@ export default function FileGrid({ onShowImage }: FileGridProps) {
   };
 
   // Sort items - directories first, then alphabetically
-  const sortedItems = [...rootNode.children].sort((a, b) => {
+  const sortedItems = [...currentContents].sort((a, b) => {
     if (a.isDirectory && !b.isDirectory) return -1;
     if (!a.isDirectory && b.isDirectory) return 1;
     return a.name.localeCompare(b.name);
