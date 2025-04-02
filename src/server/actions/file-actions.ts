@@ -20,8 +20,15 @@ export async function getDirectoryContents(
   dirPath: string = ''
 ): Promise<DirectoryContents> {
   try {
+    console.log(`[getDirectoryContents] Fetching contents for directory: "${dirPath}"`);
+    
     // Use standard non-recursive listing to only show direct contents
-    return await fs.listDirectory(dirPath);
+    const contents = await fs.listDirectory(dirPath);
+    
+    console.log(`[getDirectoryContents] Directory "${dirPath}" has ${contents.items.length} items:`, 
+      contents.items.map(item => `${item.name} (${item.isDirectory ? 'dir' : 'file'})`));
+    
+    return contents;
   } catch (error) {
     console.error('Error getting directory contents:', error);
     return {

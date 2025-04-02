@@ -19,6 +19,14 @@ interface DirectoryBrowserProps {
 export default function DirectoryBrowser({
   directoryContents
 }: DirectoryBrowserProps) {
+  console.log('DirectoryBrowser rendered with:', {
+    path: directoryContents.path,
+    itemCount: directoryContents.items.length,
+    folders: directoryContents.items.filter(item => item.isDirectory).length,
+    files: directoryContents.items.filter(item => !item.isDirectory).length,
+    items: directoryContents.items.map(item => `${item.name} (${item.isDirectory ? 'dir' : 'file'})`)
+  });
+  
   const router = useRouter();
   const [dialogState, setDialogState] = useState<DialogState>({
     isOpen: false,

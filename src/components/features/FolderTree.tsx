@@ -6,6 +6,7 @@ import { getDirectoryContents } from '@/server/actions/file-actions';
 import { FileItem } from '@/types';
 import { FolderIcon, FileIcon, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ImageOverlay } from './ImageOverlay';
 
 interface TreeNode {
   name: string;
@@ -15,6 +16,7 @@ interface TreeNode {
   isLoading: boolean;
   children: TreeNode[];
   url?: string;
+  type?: string;
 }
 
 export default function FolderTree() {
@@ -28,6 +30,8 @@ export default function FolderTree() {
     isLoading: false,
     children: [],
   });
+  const [selectedImageNode, setSelectedImageNode] = useState<TreeNode | null>(null);
+  const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
 
   // Load the root directory when the component mounts
   useEffect(() => {
@@ -46,6 +50,12 @@ export default function FolderTree() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
 
+  // Check if the file is an image
+  const isImage = (node: TreeNode) => 
+    (node.type?.startsWith('image/') || 
+    /\.(jpg|jpeg|png|gif|webp|svg|bmp|tiff|tif|heic|heif)$/i.test(node.path)) &&
+    !node.isDirectory;
+
   // Load the root directory
   const loadRootDirectory = async () => {
     try {
@@ -58,6 +68,7 @@ export default function FolderTree() {
         isLoading: false,
         children: [],
         url: item.url,
+        type: item.type,
       }));
 
       setRootNode((prev) => ({
@@ -182,6 +193,7 @@ export default function FolderTree() {
         isLoading: false,
         children: [],
         url: item.url,
+        type: item.type,
       }));
       
       // Update the node
@@ -201,8 +213,12 @@ export default function FolderTree() {
   const handleFileClick = (node: TreeNode) => {
     if (node.isDirectory) {
       router.push(`/${node.path}`);
+    } else if (isImage(node) && node.url) {
+      // Open image in overlay
+      setSelectedImageNode(node);
+      setIsImageOverlayOpen(true);
     } else if (node.url) {
-      // If it's a file with a URL, open it in a new tab
+      // Open non-image files in new tab
       window.open(node.url, '_blank');
     } else {
       // If no URL, just navigate to its directory
@@ -238,7 +254,7 @@ export default function FolderTree() {
               )}
             </button>
           ) : (
-            <span className="w-4 mr-1"></span> // Spacer for files
+            <span className="w-4 mr-1"></span> 
           )}
           
           {node.isDirectory ? (
@@ -266,9 +282,20 @@ export default function FolderTree() {
   };
 
   return (
-    <div className="bg-white rounded-md border p-2 h-full overflow-auto">
-      <div className="font-semibold text-sm mb-2">Files</div>
-      {renderTreeNodes([rootNode])}
-    </div>
+    <>
+      <div className="bg-white rounded-md border p-2 h-full overflow-auto">
+        <div className="font-semibold text-sm mb-2">Files</div>
+        {renderTreeNodes([rootNode])}
+      </div>
+      
+      {/* Image Overlay */}
+      {isImageOverlayOpen && selectedImageNode && selectedImageNode.url && (
+        <ImageOverlay
+          src={selectedImageNode.url}
+          alt={selectedImageNode.name}
+          onClose={() => setIsImageOverlayOpen(false)}
+        />
+      )}
+    </>
   );
 } 
