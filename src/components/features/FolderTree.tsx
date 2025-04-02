@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { ChevronRight, ChevronDown, Folder, FolderOpen, FileIcon } from 'lucide-react';
-import { DirectoryContents, FileItem } from '@/types';
 import { getDirectoryContents } from '@/server/actions/file-actions';
+import { FileItem } from '@/types';
+import { FolderIcon, FileIcon, ChevronRight, ChevronDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-type TreeNode = {
+interface TreeNode {
   name: string;
   path: string;
   isDirectory: boolean;
@@ -14,238 +15,260 @@ type TreeNode = {
   isLoading: boolean;
   children: TreeNode[];
   url?: string;
-};
+}
 
 export default function FolderTree() {
   const router = useRouter();
   const pathname = usePathname();
-  const currentPath = pathname.replace(/^\//, ''); // Remove leading slash
-  
-  const [tree, setTree] = useState<TreeNode[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const expandedPathRef = useRef<string>('');
-  
-  // Initial load of root directory
+  const [rootNode, setRootNode] = useState<TreeNode>({
+    name: 'Root',
+    path: '',
+    isDirectory: true,
+    isExpanded: true,
+    isLoading: false,
+    children: [],
+  });
+
+  // Load the root directory when the component mounts
   useEffect(() => {
     loadRootDirectory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  
-  // Expand to current path when navigating
+
+  // Expand folders based on current path when pathname changes
   useEffect(() => {
-    if (currentPath && currentPath !== expandedPathRef.current && tree.length > 0) {
-      expandToPath(currentPath.split('/').filter(Boolean));
-      expandedPathRef.current = currentPath;
+    if (pathname) {
+      const currentPath = pathname === '/' ? '' : pathname.slice(1);
+      if (currentPath) {
+        expandPathFolders(currentPath);
+      }
     }
-  }, [currentPath, tree.length]);
-  
-  // Load root directory contents
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  // Load the root directory
   const loadRootDirectory = async () => {
-    setIsLoading(true);
-    
     try {
       const contents = await getDirectoryContents('');
-      
-      // Convert directory contents to tree nodes
-      const rootNodes = contents.items.map(item => ({
+      const rootChildren = contents.items.map((item) => ({
         name: item.name,
         path: item.path,
         isDirectory: item.isDirectory,
         isExpanded: false,
         isLoading: false,
         children: [],
-        url: item.url
+        url: item.url,
       }));
-      
-      setTree(rootNodes);
+
+      setRootNode((prev) => ({
+        ...prev,
+        children: rootChildren,
+      }));
     } catch (error) {
       console.error('Failed to load root directory:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
-  
-  // Expand tree to reach a specific path
-  const expandToPath = async (pathSegments: string[]) => {
-    if (pathSegments.length === 0) return;
-    
-    const newTree = [...tree];
-    let currentLevel = newTree;
+
+  // Expand all folders in a path
+  const expandPathFolders = async (path: string) => {
+    const pathParts = path.split('/');
     let currentPath = '';
+
+    // Create a copy of the root node to modify
+    const newRoot = { ...rootNode };
     
-    for (const segment of pathSegments) {
-      currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+    // Traverse the path parts and expand each folder
+    for (let i = 0; i < pathParts.length; i++) {
+      const part = pathParts[i];
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
       
-      // Find matching node at current level
-      const nodeIndex = currentLevel.findIndex(node => node.name === segment);
-      
-      // If we found the node and it's a directory
-      if (nodeIndex >= 0 && currentLevel[nodeIndex].isDirectory) {
-        // Mark it as expanded
-        currentLevel[nodeIndex].isExpanded = true;
-        
-        // Load its children if not loaded yet
-        if (currentLevel[nodeIndex].children.length === 0 && !currentLevel[nodeIndex].isLoading) {
-          await loadChildren(currentLevel[nodeIndex]);
+      // Update the tree structure to expand this folder
+      await expandFolderInTree(newRoot, currentPath);
+    }
+    
+    setRootNode(newRoot);
+  };
+
+  // Helper to expand a folder in the tree structure
+  const expandFolderInTree = async (node: TreeNode, targetPath: string): Promise<boolean> => {
+    // If this is the target node, expand it and load its contents
+    if (node.path === targetPath) {
+      if (!node.isExpanded) {
+        await loadFolderContents(node);
+      }
+      node.isExpanded = true;
+      return true;
+    }
+    
+    // If this node is not a directory or has no children, we can't expand further
+    if (!node.isDirectory || !node.children.length) {
+      return false;
+    }
+    
+    // Try to find the target in children
+    for (const child of node.children) {
+      if (targetPath.startsWith(child.path)) {
+        const found = await expandFolderInTree(child, targetPath);
+        if (found) {
+          node.isExpanded = true;
+          return true;
         }
-        
-        // Move to next level
-        currentLevel = currentLevel[nodeIndex].children;
-      } else {
-        // Can't find node or it's not a directory, stop expanding
-        break;
       }
     }
     
-    setTree(newTree);
+    return false;
   };
-  
-  // Load children of a node
-  const loadChildren = async (node: TreeNode) => {
+
+  // Toggle folder expansion
+  const toggleFolder = async (node: TreeNode) => {
+    // Create a copy of the root node
+    const newRoot = { ...rootNode };
+    
+    // Find and toggle the node
+    toggleNodeInTree(newRoot, node.path);
+    
+    // Update state
+    setRootNode(newRoot);
+  };
+
+  // Helper to toggle a node in the tree structure
+  const toggleNodeInTree = async (node: TreeNode, targetPath: string): Promise<boolean> => {
+    // If this is the target node, toggle it
+    if (node.path === targetPath) {
+      node.isExpanded = !node.isExpanded;
+      
+      // Load contents if expanding and no children yet
+      if (node.isExpanded && node.children.length === 0) {
+        await loadFolderContents(node);
+      }
+      
+      return true;
+    }
+    
+    // If this node is not a directory or has no children, we can't expand further
+    if (!node.isDirectory || !node.children.length) {
+      return false;
+    }
+    
+    // Try to find the target in children
+    for (const child of node.children) {
+      if (await toggleNodeInTree(child, targetPath)) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+
+  // Load folder contents
+  const loadFolderContents = async (node: TreeNode) => {
     if (!node.isDirectory) return;
     
     node.isLoading = true;
     
     try {
+      // Update root node to reflect loading state
+      setRootNode({ ...rootNode });
+      
+      // Fetch contents
       const contents = await getDirectoryContents(node.path);
       
-      // Convert items to tree nodes
-      node.children = contents.items.map(item => ({
+      // Create child nodes for all items (both files and folders)
+      const children = contents.items.map((item) => ({
         name: item.name,
         path: item.path,
         isDirectory: item.isDirectory,
         isExpanded: false,
         isLoading: false,
         children: [],
-        url: item.url
+        url: item.url,
       }));
+      
+      // Update the node
+      node.children = children;
+      node.isLoading = false;
+      
+      // Update state
+      setRootNode({ ...rootNode });
     } catch (error) {
       console.error(`Failed to load contents for ${node.path}:`, error);
-      node.children = [];
-    } finally {
       node.isLoading = false;
+      setRootNode({ ...rootNode });
     }
   };
-  
-  // Toggle expansion of a directory node
-  const toggleNode = async (node: TreeNode) => {
-    if (!node.isDirectory) return;
-    
-    const newTree = [...tree];
-    
-    // Find the node in the tree (this is a simplification - in production code,
-    // you would need a more robust way to find nodes in a nested structure)
-    const findAndToggleNode = (nodes: TreeNode[]): boolean => {
-      for (const n of nodes) {
-        if (n.path === node.path) {
-          n.isExpanded = !n.isExpanded;
-          
-          // If expanding and children not loaded yet, load them
-          if (n.isExpanded && n.children.length === 0 && !n.isLoading) {
-            loadChildren(n).then(() => setTree([...newTree]));
-          }
-          
-          return true;
-        }
-        
-        if (n.isDirectory && n.children.length > 0) {
-          if (findAndToggleNode(n.children)) {
-            return true;
-          }
-        }
-      }
-      
-      return false;
-    };
-    
-    findAndToggleNode(newTree);
-    setTree(newTree);
-  };
-  
-  // Handle clicking on an item
-  const handleItemClick = (node: TreeNode) => {
+
+  // Handle file click
+  const handleFileClick = (node: TreeNode) => {
     if (node.isDirectory) {
       router.push(`/${node.path}`);
     } else if (node.url) {
+      // If it's a file with a URL, open it in a new tab
       window.open(node.url, '_blank');
+    } else {
+      // If no URL, just navigate to its directory
+      const dirPath = node.path.split('/').slice(0, -1).join('/');
+      router.push(`/${dirPath}`);
     }
   };
-  
-  // Render a tree node and its children
-  const renderNode = (node: TreeNode) => {
-    const isActive = currentPath === node.path;
-    
-    return (
+
+  // Render the tree nodes recursively
+  const renderTreeNodes = (nodes: TreeNode[], level = 0) => {
+    return nodes.map((node) => (
       <div key={node.path} className="tree-node">
         <div 
-          className={`flex items-center py-1.5 px-2 rounded hover:bg-gray-100 ${isActive ? 'bg-blue-50' : ''}`}
+          className={cn(
+            "flex items-center cursor-pointer py-1 px-2 hover:bg-gray-100 rounded-md",
+            pathname === `/${node.path}` && "bg-gray-100"
+          )}
+          style={{ paddingLeft: `${level * 16 + 8}px` }}
+          onClick={() => handleFileClick(node)}
         >
           {node.isDirectory ? (
-            <button
-              className="mr-1 focus:outline-none"
-              onClick={() => toggleNode(node)}
+            <button 
+              className="mr-1" 
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent triggering the parent onClick
+                toggleFolder(node);
+              }}
             >
-              {node.isLoading ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
-              ) : node.isExpanded ? (
+              {node.isExpanded ? (
                 <ChevronDown className="h-4 w-4 text-gray-500" />
               ) : (
                 <ChevronRight className="h-4 w-4 text-gray-500" />
               )}
             </button>
           ) : (
-            <span className="w-5" /> {/* Spacer for files */}
+            <span className="w-4 mr-1"></span> // Spacer for files
           )}
           
-          <div
-            className="flex items-center cursor-pointer flex-1"
-            onClick={() => handleItemClick(node)}
-          >
-            {node.isDirectory ? (
-              isActive ? (
-                <FolderOpen className="h-4 w-4 mr-2 text-blue-600" />
-              ) : (
-                <Folder className="h-4 w-4 mr-2 text-gray-600" />
-              )
-            ) : (
-              <FileIcon className="h-4 w-4 mr-2 text-gray-500" />
-            )}
-            
-            <span className="truncate text-sm" title={node.name}>
-              {node.name}
+          {node.isDirectory ? (
+            <FolderIcon className="h-4 w-4 text-blue-500 mr-2" />
+          ) : (
+            <FileIcon className="h-4 w-4 text-gray-500 mr-2" />
+          )}
+          
+          <span className="text-sm truncate">{node.name}</span>
+          
+          {node.isLoading && (
+            <span className="ml-2">
+              <span className="animate-spin h-3 w-3 border-t-2 border-blue-500 rounded-full inline-block"></span>
             </span>
-          </div>
+          )}
         </div>
         
-        {node.isDirectory && node.isExpanded && (
-          <div className="pl-4 ml-3 border-l border-gray-200">
-            {node.children.map(childNode => renderNode(childNode))}
+        {node.isDirectory && node.isExpanded && node.children.length > 0 && (
+          <div className="pl-4">
+            {renderTreeNodes(node.children, level + 1)}
           </div>
         )}
       </div>
-    );
+    ));
   };
-  
-  if (isLoading) {
-    return (
-      <div className="p-4">
-        <div className="animate-pulse h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
-        <div className="animate-pulse h-6 bg-gray-200 rounded w-1/2 mb-2"></div>
-        <div className="animate-pulse h-6 bg-gray-200 rounded w-2/3 mb-2"></div>
-      </div>
-    );
-  }
-  
+
   return (
-    <div className="folder-tree p-2 overflow-auto h-full">
-      <h3 className="font-medium mb-4 text-gray-700">Files & Folders</h3>
-      
-      {tree.length > 0 ? (
-        <div className="space-y-0.5">
-          {tree.map(node => renderNode(node))}
-        </div>
-      ) : (
-        <div className="text-sm text-gray-500">No items found</div>
-      )}
+    <div className="bg-white rounded-md border p-2 h-full overflow-auto">
+      <div className="font-semibold text-sm mb-2">Files</div>
+      {renderTreeNodes([rootNode])}
     </div>
   );
 } 
