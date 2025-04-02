@@ -65,28 +65,39 @@ export async function listDirectory(dirPath: string): Promise<DirectoryContents>
   try {
     await ensureDataDirectory();
     
+    console.log(`[filesystem.ts:listDirectory] Raw dirPath: "${dirPath}"`);
+    
     const normalizedPath = normalizePath(dirPath);
+    console.log(`[filesystem.ts:listDirectory] Normalized path: "${normalizedPath}"`);
+    
     const absolutePath = getAbsolutePath(normalizedPath);
+    console.log(`[filesystem.ts:listDirectory] Absolute path: "${absolutePath}"`);
     
     // Check if directory exists, if not return empty
     try {
       const stats = await fsPromises.stat(absolutePath);
       if (!stats.isDirectory()) {
+        console.log(`[filesystem.ts:listDirectory] Path is not a directory: "${absolutePath}"`);
         throw new Error('Path is not a directory');
       }
+      console.log(`[filesystem.ts:listDirectory] Directory exists: "${absolutePath}"`);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        console.log(`[filesystem.ts:listDirectory] Directory does not exist: "${absolutePath}"`);
         return {
           path: normalizedPath,
           items: [],
           parent: normalizedPath === '' ? null : path.dirname(normalizedPath),
         };
       }
+      console.error(`[filesystem.ts:listDirectory] Error checking directory: "${absolutePath}"`, error);
       throw error;
     }
     
     // Read directory contents
+    console.log(`[filesystem.ts:listDirectory] Reading directory: "${absolutePath}"`);
     const files = await fsPromises.readdir(absolutePath);
+    console.log(`[filesystem.ts:listDirectory] Found ${files.length} items in directory: "${absolutePath}"`);
     
     // Get file stats and create FileItem objects
     const items = await Promise.all(
@@ -115,6 +126,7 @@ export async function listDirectory(dirPath: string): Promise<DirectoryContents>
     
     // Filter out null items (files with errors)
     const validItems = items.filter(Boolean) as FileItem[];
+    console.log(`[filesystem.ts:listDirectory] Processed ${validItems.length} valid items in directory: "${absolutePath}"`);
     
     return {
       path: normalizedPath,
@@ -122,7 +134,7 @@ export async function listDirectory(dirPath: string): Promise<DirectoryContents>
       parent: normalizedPath === '' ? null : path.dirname(normalizedPath),
     };
   } catch (error) {
-    console.error('Error listing directory:', error);
+    console.error(`[filesystem.ts:listDirectory] Error listing directory: "${dirPath}"`, error);
     throw new Error('Failed to list directory');
   }
 }

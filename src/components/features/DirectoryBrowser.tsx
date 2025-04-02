@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { DirectoryContents, FileItem, DialogState } from '@/types';
 import { FolderPlus, UploadCloud, ListFilter, FolderOpen, Loader2 } from 'lucide-react';
@@ -10,7 +10,6 @@ import BreadcrumbNav from './BreadcrumbNav';
 import FileDialogs from './FileDialogs';
 import FileUpload from './FileUpload';
 import { toast } from 'sonner';
-import { ImageOverlay } from './ImageOverlay';
 
 interface DirectoryBrowserProps {
   directoryContents: DirectoryContents;
@@ -28,6 +27,7 @@ export default function DirectoryBrowser({
   });
   
   const router = useRouter();
+  const pathname = usePathname();
   const [dialogState, setDialogState] = useState<DialogState>({
     isOpen: false,
     type: null,
@@ -38,8 +38,6 @@ export default function DirectoryBrowser({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedImageItem, setSelectedImageItem] = useState<FileItem | null>(null);
-  const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
   const [items, setItems] = useState<FileItem[]>([]);
   
   // Update items when directoryContents changes
@@ -62,10 +60,14 @@ export default function DirectoryBrowser({
       console.log('Navigating to folder:', item.path);
       router.push(`/${item.path}`);
     } else if (isImage(item) && item.url) {
-      // Open image in overlay
+      // Open image in overlay via global state (handled in Layout via _app.tsx)
       console.log('Opening image in overlay:', item.url);
-      setSelectedImageItem(item);
-      setIsImageOverlayOpen(true);
+      
+      // Create and dispatch a custom event to notify Layout
+      const event = new CustomEvent('showImageOverlay', { 
+        detail: { url: item.url, name: item.name }
+      });
+      window.dispatchEvent(event);
     } else if (item.url) {
       // Open non-image files in new tab
       console.log('Opening file in new tab:', item.url);
@@ -193,15 +195,6 @@ export default function DirectoryBrowser({
         dialogState={dialogState}
         onClose={handleCloseDialog}
       />
-
-      {/* Image Overlay */}
-      {isImageOverlayOpen && selectedImageItem && selectedImageItem.url && (
-        <ImageOverlay
-          src={selectedImageItem.url}
-          alt={selectedImageItem.name}
-          onClose={() => setIsImageOverlayOpen(false)}
-        />
-      )}
     </div>
   );
 } 

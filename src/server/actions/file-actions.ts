@@ -20,7 +20,19 @@ export async function getDirectoryContents(
   dirPath: string = ''
 ): Promise<DirectoryContents> {
   try {
-    console.log(`[getDirectoryContents] Fetching contents for directory: "${dirPath}"`);
+    console.log(`[getDirectoryContents] Fetching contents for directory: "${dirPath}" (type: ${typeof dirPath})`);
+    
+    // Ensure dirPath is properly formatted
+    if (Array.isArray(dirPath)) {
+      console.log('[getDirectoryContents] dirPath is an array, joining with /', dirPath);
+      dirPath = dirPath.join('/');
+    }
+    
+    // Add extra debugging for nested paths
+    if (dirPath.includes('/')) {
+      console.log(`[getDirectoryContents] Nested path detected: ${dirPath}`);
+      console.log(`[getDirectoryContents] Path segments:`, dirPath.split('/'));
+    }
     
     // Use standard non-recursive listing to only show direct contents
     const contents = await fs.listDirectory(dirPath);
@@ -30,7 +42,7 @@ export async function getDirectoryContents(
     
     return contents;
   } catch (error) {
-    console.error('Error getting directory contents:', error);
+    console.error(`Error getting directory contents for "${dirPath}":`, error);
     return {
       path: dirPath,
       items: [],

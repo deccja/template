@@ -1,20 +1,55 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Toaster } from '@/components/ui/sonner';
 import Header from '@/components/layout/Header';
 import FolderTree from '../features/FolderTree';
 import { Menu, X } from 'lucide-react';
+import { ImageOverlay } from '../features/ImageOverlay';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
+// Define a type for image data
+interface ImageData {
+  url: string;
+  name: string;
+}
+
 export default function Layout({ children }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [overlayImage, setOverlayImage] = useState<ImageData | null>(null);
+  
+  // Listen for custom events from DirectoryBrowser
+  useEffect(() => {
+    const handleShowOverlay = (event: CustomEvent<ImageData>) => {
+      console.log('Layout received showImageOverlay event:', event.detail);
+      setOverlayImage(event.detail);
+    };
+    
+    // Add event listener
+    window.addEventListener('showImageOverlay', handleShowOverlay as EventListener);
+    
+    // Cleanup function
+    return () => {
+      window.removeEventListener('showImageOverlay', handleShowOverlay as EventListener);
+    };
+  }, []);
   
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
+  };
+  
+  // Function to show the image overlay
+  const showImageOverlay = (imageData: ImageData) => {
+    console.log('Layout - showing image overlay:', imageData);
+    setOverlayImage(imageData);
+  };
+  
+  // Function to hide the image overlay
+  const hideImageOverlay = () => {
+    setOverlayImage(null);
   };
   
   return (
@@ -45,7 +80,7 @@ export default function Layout({ children }: LayoutProps) {
           transition-transform duration-300 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
         `}>
-          <FolderTree />
+          <FolderTree onShowImage={showImageOverlay} />
         </div>
         
         {/* Main content area */}
@@ -55,6 +90,16 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </main>
       </div>
+      
+      {/* Global image overlay */}
+      {overlayImage && (
+        <ImageOverlay
+          src={overlayImage.url}
+          alt={overlayImage.name}
+          onClose={hideImageOverlay}
+        />
+      )}
+      
       <Toaster position="top-right" />
     </div>
   );

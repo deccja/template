@@ -6,7 +6,6 @@ import { getDirectoryContents } from '@/server/actions/file-actions';
 import { FileItem } from '@/types';
 import { FolderIcon, FileIcon, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ImageOverlay } from './ImageOverlay';
 
 interface TreeNode {
   name: string;
@@ -19,7 +18,11 @@ interface TreeNode {
   type?: string;
 }
 
-export default function FolderTree() {
+interface FolderTreeProps {
+  onShowImage: (imageData: { url: string; name: string }) => void;
+}
+
+export default function FolderTree({ onShowImage }: FolderTreeProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [rootNode, setRootNode] = useState<TreeNode>({
@@ -30,8 +33,6 @@ export default function FolderTree() {
     isLoading: false,
     children: [],
   });
-  const [selectedImageNode, setSelectedImageNode] = useState<TreeNode | null>(null);
-  const [isImageOverlayOpen, setIsImageOverlayOpen] = useState(false);
 
   // Load the root directory when the component mounts
   useEffect(() => {
@@ -217,10 +218,11 @@ export default function FolderTree() {
       router.push(`/${node.path}`);
     } else if (isImage(node) && node.url) {
       console.log('FolderTree - opening image in overlay:', node.url);
-      // Open image in overlay
-      setSelectedImageNode(node);
-      setIsImageOverlayOpen(true);
-      console.log('Set overlay state to true, selectedImageNode:', node);
+      // Use the layout's image overlay
+      onShowImage({
+        url: node.url,
+        name: node.name
+      });
     } else if (node.url) {
       // Open non-image files in new tab
       window.open(node.url, '_blank');
@@ -286,23 +288,9 @@ export default function FolderTree() {
   };
 
   return (
-    <>
-      <div className="bg-white rounded-md border p-2 h-full overflow-auto">
-        <div className="font-semibold text-sm mb-2">Files</div>
-        {renderTreeNodes([rootNode])}
-      </div>
-      
-      {/* Image Overlay */}
-      {isImageOverlayOpen && selectedImageNode && selectedImageNode.url && (
-        <ImageOverlay
-          src={selectedImageNode.url}
-          alt={selectedImageNode.name}
-          onClose={() => {
-            console.log('Closing image overlay');
-            setIsImageOverlayOpen(false);
-          }}
-        />
-      )}
-    </>
+    <div className="bg-white rounded-md border p-2 h-full overflow-auto">
+      <div className="font-semibold text-sm mb-2">Files</div>
+      {renderTreeNodes([rootNode])}
+    </div>
   );
 } 
