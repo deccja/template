@@ -2,17 +2,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
-import { FileItem } from '@/types';
+import { ChevronRight, ChevronDown, Folder, FolderOpen, FileIcon } from 'lucide-react';
+import { DirectoryContents, FileItem } from '@/types';
 import { getDirectoryContents } from '@/server/actions/file-actions';
 
-interface TreeNode {
+type TreeNode = {
   name: string;
   path: string;
+  isDirectory: boolean;
   isExpanded: boolean;
-  children: TreeNode[];
   isLoading: boolean;
-}
+  children: TreeNode[];
+  url?: string;
+};
 
 export default function FolderTree() {
   const router = useRouter();
@@ -21,155 +23,166 @@ export default function FolderTree() {
   
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const expandedRef = useRef<string>(''); // Track the last expanded path
-
-  // Load root directory on initial load
+  const expandedPathRef = useRef<string>('');
+  
+  // Initial load of root directory
   useEffect(() => {
     loadRootDirectory();
   }, []);
-
-  // Expand folders in the path based on current location
+  
+  // Expand to current path when navigating
   useEffect(() => {
-    if (currentPath && tree.length > 0 && currentPath !== expandedRef.current) {
-      const pathSegments = currentPath.split('/').filter(Boolean);
-      if (pathSegments.length > 0) {
-        expandPathToCurrentFolder(pathSegments);
-        expandedRef.current = currentPath; // Mark this path as expanded
-      }
+    if (currentPath && currentPath !== expandedPathRef.current && tree.length > 0) {
+      expandToPath(currentPath.split('/').filter(Boolean));
+      expandedPathRef.current = currentPath;
     }
-  }, [currentPath, tree.length]); // Only depend on tree.length, not the full tree
-
-  // Load the root directory contents
+  }, [currentPath, tree.length]);
+  
+  // Load root directory contents
   const loadRootDirectory = async () => {
     setIsLoading(true);
+    
     try {
       const contents = await getDirectoryContents('');
-      const rootFolders = contents.items
-        .filter(item => item.isDirectory)
-        .map(folder => ({
-          name: folder.name,
-          path: folder.path,
-          isExpanded: false,
-          children: [],
-          isLoading: false
-        }));
       
-      setTree(rootFolders);
+      // Convert directory contents to tree nodes
+      const rootNodes = contents.items.map(item => ({
+        name: item.name,
+        path: item.path,
+        isDirectory: item.isDirectory,
+        isExpanded: false,
+        isLoading: false,
+        children: [],
+        url: item.url
+      }));
+      
+      setTree(rootNodes);
     } catch (error) {
       console.error('Failed to load root directory:', error);
     } finally {
       setIsLoading(false);
     }
   };
-
-  // Recursively expand folders to reach the current path
-  const expandPathToCurrentFolder = async (pathSegments: string[]) => {
-    let currentLevel = tree;
-    let currentPathSoFar = '';
+  
+  // Expand tree to reach a specific path
+  const expandToPath = async (pathSegments: string[]) => {
+    if (pathSegments.length === 0) return;
     
-    // Create a copy of the tree to modify
     const newTree = [...tree];
+    let currentLevel = newTree;
+    let currentPath = '';
     
     for (const segment of pathSegments) {
-      currentPathSoFar = currentPathSoFar ? `${currentPathSoFar}/${segment}` : segment;
+      currentPath = currentPath ? `${currentPath}/${segment}` : segment;
       
-      // Find the node at this level that matches the segment
+      // Find matching node at current level
       const nodeIndex = currentLevel.findIndex(node => node.name === segment);
       
-      if (nodeIndex >= 0) {
-        // Mark this node as expanded
+      // If we found the node and it's a directory
+      if (nodeIndex >= 0 && currentLevel[nodeIndex].isDirectory) {
+        // Mark it as expanded
         currentLevel[nodeIndex].isExpanded = true;
         
-        // If children haven't been loaded yet, load them
+        // Load its children if not loaded yet
         if (currentLevel[nodeIndex].children.length === 0 && !currentLevel[nodeIndex].isLoading) {
-          await loadFolderContents(currentLevel[nodeIndex], newTree);
+          await loadChildren(currentLevel[nodeIndex]);
         }
         
-        // Continue to next level
+        // Move to next level
         currentLevel = currentLevel[nodeIndex].children;
       } else {
-        break; // Path segment not found in the tree
+        // Can't find node or it's not a directory, stop expanding
+        break;
       }
     }
     
     setTree(newTree);
   };
-
-  // Toggle folder expansion
-  const toggleFolder = async (node: TreeNode, nodePath: TreeNode[]) => {
-    const newTree = [...tree];
+  
+  // Load children of a node
+  const loadChildren = async (node: TreeNode) => {
+    if (!node.isDirectory) return;
     
-    // Find the node by path and toggle its expanded state
-    let currentLevel = newTree;
-    for (const pathNode of nodePath) {
-      const nodeIndex = currentLevel.findIndex(n => n.path === pathNode.path);
-      if (nodeIndex >= 0) {
-        currentLevel = currentLevel[nodeIndex].children;
-      } else {
-        return; // Node not found
-      }
-    }
-    
-    const nodeIndex = currentLevel.findIndex(n => n.path === node.path);
-    if (nodeIndex >= 0) {
-      const isExpanded = !currentLevel[nodeIndex].isExpanded;
-      currentLevel[nodeIndex].isExpanded = isExpanded;
-      
-      // If expanding and no children loaded yet, load them
-      if (isExpanded && currentLevel[nodeIndex].children.length === 0 && !currentLevel[nodeIndex].isLoading) {
-        await loadFolderContents(currentLevel[nodeIndex], newTree);
-      }
-      
-      setTree(newTree);
-    }
-  };
-
-  // Load folder contents and update tree
-  const loadFolderContents = async (node: TreeNode, treeState: TreeNode[]) => {
-    // Mark as loading
     node.isLoading = true;
     
     try {
       const contents = await getDirectoryContents(node.path);
-      const folders = contents.items
-        .filter(item => item.isDirectory)
-        .map(folder => ({
-          name: folder.name,
-          path: folder.path,
-          isExpanded: false,
-          children: [],
-          isLoading: false
-        }));
       
-      node.children = folders;
+      // Convert items to tree nodes
+      node.children = contents.items.map(item => ({
+        name: item.name,
+        path: item.path,
+        isDirectory: item.isDirectory,
+        isExpanded: false,
+        isLoading: false,
+        children: [],
+        url: item.url
+      }));
     } catch (error) {
       console.error(`Failed to load contents for ${node.path}:`, error);
+      node.children = [];
     } finally {
       node.isLoading = false;
     }
+  };
+  
+  // Toggle expansion of a directory node
+  const toggleNode = async (node: TreeNode) => {
+    if (!node.isDirectory) return;
     
-    return treeState;
-  };
-
-  // Handle folder click
-  const handleFolderClick = (node: TreeNode) => {
-    router.push(`/${node.path}`);
-  };
-
-  // Recursive function to render tree nodes
-  const renderTreeNodes = (nodes: TreeNode[], path: TreeNode[] = []) => {
-    return nodes.map(node => {
-      const isActive = currentPath === node.path;
-      const nodePath = [...path];
+    const newTree = [...tree];
+    
+    // Find the node in the tree (this is a simplification - in production code,
+    // you would need a more robust way to find nodes in a nested structure)
+    const findAndToggleNode = (nodes: TreeNode[]): boolean => {
+      for (const n of nodes) {
+        if (n.path === node.path) {
+          n.isExpanded = !n.isExpanded;
+          
+          // If expanding and children not loaded yet, load them
+          if (n.isExpanded && n.children.length === 0 && !n.isLoading) {
+            loadChildren(n).then(() => setTree([...newTree]));
+          }
+          
+          return true;
+        }
+        
+        if (n.isDirectory && n.children.length > 0) {
+          if (findAndToggleNode(n.children)) {
+            return true;
+          }
+        }
+      }
       
-      return (
-        <div key={node.path} className="folder-tree-node">
-          <div 
-            className={`flex items-center py-1.5 px-2 rounded hover:bg-gray-100 ${isActive ? 'bg-blue-50 text-blue-700 font-medium' : ''}`}
-          >
-            <button 
-              onClick={() => toggleFolder(node, nodePath)}
+      return false;
+    };
+    
+    findAndToggleNode(newTree);
+    setTree(newTree);
+  };
+  
+  // Handle clicking on an item
+  const handleItemClick = (node: TreeNode) => {
+    if (node.isDirectory) {
+      router.push(`/${node.path}`);
+    } else if (node.url) {
+      window.open(node.url, '_blank');
+    }
+  };
+  
+  // Render a tree node and its children
+  const renderNode = (node: TreeNode) => {
+    const isActive = currentPath === node.path;
+    
+    return (
+      <div key={node.path} className="tree-node">
+        <div 
+          className={`flex items-center py-1.5 px-2 rounded hover:bg-gray-100 ${isActive ? 'bg-blue-50' : ''}`}
+        >
+          {node.isDirectory ? (
+            <button
               className="mr-1 focus:outline-none"
+              onClick={() => toggleNode(node)}
             >
               {node.isLoading ? (
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
@@ -179,32 +192,39 @@ export default function FolderTree() {
                 <ChevronRight className="h-4 w-4 text-gray-500" />
               )}
             </button>
-            
-            <div 
-              className="flex items-center cursor-pointer flex-1"
-              onClick={() => handleFolderClick(node)}
-            >
-              {isActive ? (
+          ) : (
+            <span className="w-5" /> {/* Spacer for files */}
+          )}
+          
+          <div
+            className="flex items-center cursor-pointer flex-1"
+            onClick={() => handleItemClick(node)}
+          >
+            {node.isDirectory ? (
+              isActive ? (
                 <FolderOpen className="h-4 w-4 mr-2 text-blue-600" />
               ) : (
                 <Folder className="h-4 w-4 mr-2 text-gray-600" />
-              )}
-              <span className="truncate text-sm" title={node.name}>
-                {node.name}
-              </span>
-            </div>
+              )
+            ) : (
+              <FileIcon className="h-4 w-4 mr-2 text-gray-500" />
+            )}
+            
+            <span className="truncate text-sm" title={node.name}>
+              {node.name}
+            </span>
           </div>
-          
-          {node.isExpanded && (
-            <div className="pl-4 border-l border-gray-200 ml-3">
-              {renderTreeNodes(node.children, [...nodePath, node])}
-            </div>
-          )}
         </div>
-      );
-    });
+        
+        {node.isDirectory && node.isExpanded && (
+          <div className="pl-4 ml-3 border-l border-gray-200">
+            {node.children.map(childNode => renderNode(childNode))}
+          </div>
+        )}
+      </div>
+    );
   };
-
+  
   if (isLoading) {
     return (
       <div className="p-4">
@@ -214,14 +234,17 @@ export default function FolderTree() {
       </div>
     );
   }
-
+  
   return (
     <div className="folder-tree p-2 overflow-auto h-full">
-      <h3 className="font-medium mb-4 text-gray-700">Folders</h3>
+      <h3 className="font-medium mb-4 text-gray-700">Files & Folders</h3>
+      
       {tree.length > 0 ? (
-        renderTreeNodes(tree)
+        <div className="space-y-0.5">
+          {tree.map(node => renderNode(node))}
+        </div>
       ) : (
-        <div className="text-sm text-gray-500">No folders found</div>
+        <div className="text-sm text-gray-500">No items found</div>
       )}
     </div>
   );

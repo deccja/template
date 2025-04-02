@@ -41,15 +41,19 @@ export default function DirectoryBrowser({
 
   // Handle clicking on a file or folder
   const handleItemClick = (item: FileItem) => {
+    console.log('Item clicked:', item);
     if (item.isDirectory) {
       // Navigate to folder
+      console.log('Navigating to folder:', item.path);
       router.push(`/${item.path}`);
     } else if (isImage(item) && item.url) {
       // Open image in overlay
+      console.log('Opening image in overlay:', item.url);
       setSelectedImageItem(item);
       setIsImageOverlayOpen(true);
     } else if (item.url) {
       // Open non-image files in new tab
+      console.log('Opening file in new tab:', item.url);
       window.open(item.url, '_blank');
     }
   };
@@ -130,6 +134,11 @@ export default function DirectoryBrowser({
               {directoryContents.path ? directoryContents.path.split('/').pop() : 'Root Directory'}
             </h1>
             <BreadcrumbNav currentPath={directoryContents.path} />
+            <div className="text-xs text-gray-500 mt-1">
+              Folders: {directoryContents.items.filter(item => item.isDirectory).length} | 
+              Files: {directoryContents.items.filter(item => !item.isDirectory).length}
+              {directoryContents.items.length === 0 && (<span className="ml-2 text-red-500">No items found in this folder!</span>)}
+            </div>
           </div>
           
           <div className="flex gap-2">
