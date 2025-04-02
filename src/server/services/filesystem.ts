@@ -26,14 +26,28 @@ export async function ensureDataDirectory(): Promise<void> {
  * Validates and normalizes a file path to prevent path traversal attacks
  */
 export function normalizePath(inputPath: string): string {
+  console.log(`[normalizePath] Input path: "${inputPath}"`);
+  
+  // Handle empty or root paths
+  if (!inputPath || inputPath === '' || inputPath === '/') {
+    return '';
+  }
+  
   // Remove leading slashes and normalize path
-  const normalizedPath = path.normalize(inputPath.replace(/^\/+/, ''));
+  let normalizedPath = inputPath.replace(/^\/+/, '');
+  
+  // Use Node.js path normalization but keep relative paths as they are
+  normalizedPath = path.normalize(normalizedPath);
   
   // Prevent path traversal
   if (normalizedPath.includes('..')) {
     throw new Error('Invalid path');
   }
   
+  // Remove any "./" at the beginning which path.normalize might add
+  normalizedPath = normalizedPath.replace(/^\.\//, '');
+  
+  console.log(`[normalizePath] Normalized path: "${normalizedPath}"`);
   return normalizedPath;
 }
 
