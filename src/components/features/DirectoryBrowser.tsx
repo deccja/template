@@ -10,6 +10,7 @@ import BreadcrumbNav from './BreadcrumbNav';
 import FileDialogs from './FileDialogs';
 import FileUpload from './FileUpload';
 import { toast } from 'sonner';
+import { getDirectoryContents } from '@/server/actions/file-actions';
 
 interface DirectoryBrowserProps {
   directoryContents: DirectoryContents;
@@ -39,12 +40,45 @@ export default function DirectoryBrowser({
   const [selectedItem, setSelectedItem] = useState<FileItem | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [items, setItems] = useState<FileItem[]>([]);
+  const [currentDirContents, setCurrentDirContents] = useState<DirectoryContents>(directoryContents);
   
-  // Update items when directoryContents changes
+  // Fetch directory contents when pathname changes during client-side navigation
   useEffect(() => {
-    console.log('Setting items from directoryContents:', directoryContents.items.length);
-    setItems(directoryContents.items);
-  }, [directoryContents]);
+    const fetchDirectoryContents = async () => {
+      setIsLoading(true);
+      try {
+        // Convert pathname to directory path (remove leading slash)
+        const dirPath = pathname === '/' ? '' : pathname.slice(1);
+        console.log(`Fetching contents for directory: "${dirPath}" based on pathname: "${pathname}"`);
+        
+        // Skip if we're already showing the correct directory
+        if (dirPath === currentDirContents.path) {
+          console.log('Already showing the correct directory, skipping fetch');
+          return;
+        }
+        
+        const contents = await getDirectoryContents(dirPath);
+        console.log(`Fetched ${contents.items.length} items for "${dirPath}"`);
+        setCurrentDirContents(contents);
+      } catch (error) {
+        console.error('Error fetching directory contents:', error);
+        toast.error('Failed to load directory contents');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Fetch contents when pathname changes (client-side navigation)
+    fetchDirectoryContents();
+  }, [pathname]);
+  
+  // Update items when directoryContents or currentDirContents changes
+  useEffect(() => {
+    const contentsToUse = currentDirContents || directoryContents;
+    console.log(`Setting items from ${contentsToUse === directoryContents ? 'server props' : 'client fetch'}:`, 
+      contentsToUse.path, contentsToUse.items.length);
+    setItems(contentsToUse.items);
+  }, [directoryContents, currentDirContents]);
 
   // Check if the file is an image
   const isImage = (item: FileItem) => 
@@ -148,9 +182,9 @@ export default function DirectoryBrowser({
         <div className="flex items-center justify-between gap-4">
           <div className="flex flex-col">
             <h1 className="text-xl font-semibold mb-1">
-              {directoryContents.path ? directoryContents.path.split('/').pop() : 'Root Directory'}
+              {currentDirContents.path ? currentDirContents.path.split('/').pop() : 'Root Directory'}
             </h1>
-            <BreadcrumbNav currentPath={directoryContents.path} />
+            <BreadcrumbNav currentPath={currentDirContents.path} />
             <div className="text-xs text-gray-500 mt-1">
               Folders: {items.filter(item => item.isDirectory).length} | 
               Files: {items.filter(item => !item.isDirectory).length}
@@ -175,10 +209,15 @@ export default function DirectoryBrowser({
         {/* File Upload */}
         {showUpload && <FileUpload />}
 
-        {items.length > 0 ? (
+        {isLoading ? (
+          <div className="flex h-40 flex-col items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            <p className="mt-2 text-sm text-gray-500">Loading contents...</p>
+          </div>
+        ) : items.length > 0 ? (
           <FileGrid 
             items={items}
-            currentPath={directoryContents.path}
+            currentPath={currentDirContents.path}
             onItemClick={handleItemClick}
             onItemMenuClick={handleItemMenuClick}
           />
