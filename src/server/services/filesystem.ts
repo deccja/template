@@ -33,8 +33,21 @@ export function normalizePath(inputPath: string): string {
     return '';
   }
   
+  // Ensure proper decoding of URI components
+  let decodedPath = inputPath;
+  try {
+    // Only decode if it appears to be encoded
+    if (inputPath.includes('%')) {
+      decodedPath = decodeURIComponent(inputPath);
+      console.log(`[normalizePath] Decoded path from: "${inputPath}" to: "${decodedPath}"`);
+    }
+  } catch (error) {
+    console.error(`[normalizePath] Error decoding path: "${inputPath}"`, error);
+    // Continue with the original path if decoding fails
+  }
+  
   // Remove leading slashes and normalize path
-  let normalizedPath = inputPath.replace(/^\/+/, '');
+  let normalizedPath = decodedPath.replace(/^\/+/, '');
   
   // Use Node.js path normalization but keep relative paths as they are
   normalizedPath = path.normalize(normalizedPath);

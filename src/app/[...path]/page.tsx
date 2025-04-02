@@ -14,7 +14,19 @@ interface PathPageProps {
 export default async function PathPage({ params }: PathPageProps) {
   // Ensure params is awaited before accessing properties
   const pathParams = await Promise.resolve(params);
-  const pathString = pathParams.path.join('/');
+  
+  // Decode any URL-encoded components in the path
+  const decodedPath = pathParams.path.map(segment => {
+    try {
+      return decodeURIComponent(segment);
+    } catch (error) {
+      console.error(`Error decoding path segment: ${segment}`, error);
+      return segment;
+    }
+  });
+  
+  const pathString = decodedPath.join('/');
+  console.log(`[PathPage] Path string after joining: "${pathString}"`);
   
   try {
     // Get directory contents for the requested path
