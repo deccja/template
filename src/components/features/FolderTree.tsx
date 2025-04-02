@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { ChevronRight, ChevronDown, Folder, FolderOpen } from 'lucide-react';
 import { FileItem } from '@/types';
@@ -21,6 +21,7 @@ export default function FolderTree() {
   
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const expandedRef = useRef<string>(''); // Track the last expanded path
 
   // Load root directory on initial load
   useEffect(() => {
@@ -29,13 +30,14 @@ export default function FolderTree() {
 
   // Expand folders in the path based on current location
   useEffect(() => {
-    if (currentPath && tree.length > 0) {
+    if (currentPath && tree.length > 0 && currentPath !== expandedRef.current) {
       const pathSegments = currentPath.split('/').filter(Boolean);
       if (pathSegments.length > 0) {
         expandPathToCurrentFolder(pathSegments);
+        expandedRef.current = currentPath; // Mark this path as expanded
       }
     }
-  }, [currentPath, tree]);
+  }, [currentPath, tree.length]); // Only depend on tree.length, not the full tree
 
   // Load the root directory contents
   const loadRootDirectory = async () => {
