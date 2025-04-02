@@ -33,17 +33,43 @@ export function normalizePath(inputPath: string): string {
     return '';
   }
   
-  // Remove only leading and trailing slashes - don't use path.normalize() 
-  // which might replace valid paths with "."
-  let normalizedPath = inputPath.replace(/^\/+/, '').replace(/\/+$/, '');
-  
-  // Prevent path traversal
-  if (normalizedPath.includes('..')) {
-    throw new Error('Invalid path');
+  // Ensure proper decoding first if needed (should already be decoded from URL routing)
+  let decodedPath = inputPath;
+  try {
+    // Check for percent encoding
+    if (decodedPath.includes('%')) {
+      decodedPath = decodeURIComponent(decodedPath);
+      console.log(`[normalizePath] Decoded path to: "${decodedPath}"`);
+    }
+  } catch (error) {
+    console.error(`[normalizePath] Error decoding path: "${inputPath}"`, error);
+    // Proceed with potentially undecoded path if error occurs
+  }
+
+  // Remove leading slashes for consistency before joining with DATA_PATH
+  let pathWithoutLeadingSlash = decodedPath.replace(/^\/+/, '');
+
+  // Use Node.js path.normalize for OS compatibility (e.g., handling separators)
+  // but apply it carefully to avoid replacing valid names with '.'
+  let normalized = path.normalize(pathWithoutLeadingSlash);
+
+  // path.normalize might return '.' for an empty string after processing.
+  // If the original was not empty, but normalize returns '.', use the cleaned path.
+  if (normalized === '.' && pathWithoutLeadingSlash !== '' && pathWithoutLeadingSlash !== '.') {
+      normalized = pathWithoutLeadingSlash; 
+  }
+
+  // Prevent path traversal again after normalization
+  if (normalized.includes('..')) {
+    console.error(`[normalizePath] Path traversal attempt detected after normalization: "${normalized}"`);
+    throw new Error('Invalid path: Path traversal attempt detected');
   }
   
-  console.log(`[normalizePath] Normalized path: "${normalizedPath}"`);
-  return normalizedPath;
+  // Remove trailing slashes
+  normalized = normalized.replace(/\/+$/, '');
+
+  console.log(`[normalizePath] Final normalized path: "${normalized}"`);
+  return normalized;
 }
 
 /**

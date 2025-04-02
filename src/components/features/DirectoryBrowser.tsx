@@ -45,36 +45,35 @@ export default function DirectoryBrowser({
   // Fetch directory contents when pathname changes during client-side navigation
   useEffect(() => {
     const fetchDirectoryContents = async () => {
+      // Use pathname directly, let server action handle normalization/decoding
+      const pathFromServer = pathname === '/' ? '' : pathname.slice(1);
+      console.log(`[DirectoryBrowser] Pathname changed to: "${pathname}". Fetching contents for server path: "${pathFromServer}"`);
+      
       setIsLoading(true);
       try {
-        // Convert pathname to directory path (remove leading slash)
-        const dirPath = pathname === '/' ? '' : pathname.slice(1);
-        
-        console.log(`Fetching contents for directory from pathname: "${pathname}" -> path: "${dirPath}"`);
-        
-        // Get the contents for this directory
-        const contents = await getDirectoryContents(dirPath);
-        console.log(`Fetched ${contents.items.length} items for "${dirPath}"`);
+        // Get the contents for this directory using the path derived from URL
+        const contents = await getDirectoryContents(pathFromServer);
+        console.log(`[DirectoryBrowser] Fetched ${contents.items.length} items for path: "${contents.path}"`);
         setCurrentDirContents(contents);
       } catch (error) {
         console.error('Error fetching directory contents:', error);
         toast.error('Failed to load directory contents');
+        // Optionally reset to a safe state or show error message
+        setCurrentDirContents({ path: pathFromServer, items: [], parent: null });
       } finally {
         setIsLoading(false);
       }
     };
 
-    // Fetch contents when pathname changes (client-side navigation)
+    // Fetch contents whenever the browser URL's pathname changes
     fetchDirectoryContents();
   }, [pathname]); // Only depend on pathname changes
   
-  // Update items when directoryContents or currentDirContents changes
+  // Update local items state when currentDirContents changes
   useEffect(() => {
-    const contentsToUse = currentDirContents || directoryContents;
-    console.log(`Setting items from ${contentsToUse === directoryContents ? 'server props' : 'client fetch'}:`, 
-      contentsToUse.path, contentsToUse.items.length);
-    setItems(contentsToUse.items);
-  }, [directoryContents, currentDirContents]);
+    console.log(`[DirectoryBrowser] Updating local items state from currentDirContents for path: "${currentDirContents.path}"`);
+    setItems(currentDirContents.items);
+  }, [currentDirContents]);
 
   // Check if the file is an image
   const isImage = (item: FileItem) => 

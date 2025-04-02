@@ -15,18 +15,9 @@ export default async function PathPage({ params }: PathPageProps) {
   // Ensure params is awaited before accessing properties
   const pathParams = await Promise.resolve(params);
   
-  // Decode any URL-encoded components in the path
-  const decodedPath = pathParams.path.map(segment => {
-    try {
-      return decodeURIComponent(segment);
-    } catch (error) {
-      console.error(`Error decoding path segment: ${segment}`, error);
-      return segment;
-    }
-  });
-  
-  const pathString = decodedPath.join('/');
-  console.log(`[PathPage] Path string after joining: "${pathString}"`);
+  // Join path segments directly. Decoding and normalization will happen server-side.
+  const pathString = pathParams.path.join('/');
+  console.log(`[PathPage] Raw path string from params: "${pathString}"`);
   
   try {
     // Get directory contents for the requested path
@@ -34,16 +25,18 @@ export default async function PathPage({ params }: PathPageProps) {
     
     // If the path doesn't exist or isn't a directory, show 404
     if (!directoryContents || directoryContents.items === undefined) {
+      console.warn(`[PathPage] Directory contents not found or invalid for path: "${pathString}"`);
       return notFound();
     }
     
+    console.log(`[PathPage] Successfully fetched contents for path: "${directoryContents.path}"`);
     return (
       <Layout>
         <DirectoryBrowser directoryContents={directoryContents} />
       </Layout>
     );
   } catch (error) {
-    console.error('Error fetching directory contents:', error);
+    console.error(`[PathPage] Error fetching directory contents for path: "${pathString}"`, error);
     return notFound();
   }
 } 
