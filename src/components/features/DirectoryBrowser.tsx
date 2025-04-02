@@ -147,6 +147,7 @@ export default function DirectoryBrowser({
         {directoryContents.items.length > 0 ? (
           <FileGrid 
             items={directoryContents.items}
+            currentPath={directoryContents.path}
             onItemClick={handleItemClick}
             onItemMenuClick={handleItemMenuClick}
           />

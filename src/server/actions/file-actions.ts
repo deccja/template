@@ -20,7 +20,8 @@ export async function getDirectoryContents(
   dirPath: string = ''
 ): Promise<DirectoryContents> {
   try {
-    return await fs.listDirectory(dirPath);
+    // Always use recursive listing to get all nested files and folders
+    return await fs.listDirectoryRecursively(dirPath);
   } catch (error) {
     console.error('Error getting directory contents:', error);
     return {

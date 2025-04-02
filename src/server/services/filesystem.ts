@@ -440,6 +440,81 @@ export async function getFileContent(filePath: string): Promise<Buffer> {
 }
 
 /**
+ * Lists directory contents recursively
+ * This retrieves all files and subdirectories at any nesting level
+ */
+export async function listDirectoryRecursively(dirPath: string): Promise<DirectoryContents> {
+  try {
+    await ensureDataDirectory();
+    
+    const normalizedPath = normalizePath(dirPath);
+    const absolutePath = getAbsolutePath(normalizedPath);
+    
+    // Check if directory exists, if not return empty
+    try {
+      const stats = await fsPromises.stat(absolutePath);
+      if (!stats.isDirectory()) {
+        throw new Error('Path is not a directory');
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return {
+          path: normalizedPath,
+          items: [],
+          parent: normalizedPath === '' ? null : path.dirname(normalizedPath),
+        };
+      }
+      throw error;
+    }
+    
+    // Read directory contents
+    const files = await fsPromises.readdir(absolutePath);
+    
+    // Get file stats and create FileItem objects for all items including nested ones
+    const items: FileItem[] = [];
+    
+    for (const file of files) {
+      const filePath = path.join(normalizedPath, file);
+      const absoluteFilePath = getAbsolutePath(filePath);
+      
+      try {
+        const stats = await fsPromises.stat(absoluteFilePath);
+        
+        // Create the file/folder item
+        const item: FileItem = {
+          name: file,
+          path: filePath,
+          type: stats.isDirectory() ? 'folder' : getMimeType(file),
+          isDirectory: stats.isDirectory(),
+          size: stats.size,
+          modifiedAt: stats.mtime,
+          url: stats.isDirectory() ? undefined : `/api/file/${encodeURIComponent(filePath)}`,
+        };
+        
+        items.push(item);
+        
+        // If it's a directory, recursively get its contents
+        if (stats.isDirectory()) {
+          const subDirContents = await listDirectoryRecursively(filePath);
+          items.push(...subDirContents.items);
+        }
+      } catch (error) {
+        console.error(`Error getting stats for ${file}:`, error);
+      }
+    }
+    
+    return {
+      path: normalizedPath,
+      items: items,
+      parent: normalizedPath === '' ? null : path.dirname(normalizedPath),
+    };
+  } catch (error) {
+    console.error('Error listing directory recursively:', error);
+    throw new Error('Failed to list directory recursively');
+  }
+}
+
+/**
  * Gets a file's MIME type based on extension
  */
 function getMimeType(fileName: string): string {
